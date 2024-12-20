@@ -1,0 +1,55 @@
+trigger:
+  branches:
+    include:
+      - main
+      - release/*
+
+pr:
+  branches:
+    include:
+      - main
+      - release/*
+
+jobs:
+  - job: LintMarkdownFiles
+    displayName: 'Lint Markdown Files'
+    pool:
+      vmImage: 'ubuntu-latest'
+
+    steps:
+      - task: Checkout@2
+        displayName: 'Checkout Code'
+
+      - script: |
+          # Check if there are any markdown files in the PR
+          MARKDOWN_FILES=$(git diff --name-only ${{ parameters.baseBranch }} ${{ parameters.headBranch }} | grep -E '\.md$')
+          if [[ -z "$MARKDOWN_FILES" ]]; then
+            echo "No markdown files changed in the PR. Skipping markdownlint."
+            exit 0
+          fi
+        displayName: 'Detect Markdown Files'
+
+      - task: UseNode@2
+        inputs:
+          versionSpec: '16.x'
+        displayName: 'Set up Node.js'
+
+      - script: |
+          # Install markdownlint-cli package
+          npm install -g markdownlint-cli
+        displayName: 'Install markdownlint'
+
+      - script: |
+          # Run markdownlint on the changed markdown files
+          markdownlint $MARKDOWN_FILES
+        displayName: 'Run markdownlint'
+
+      - script: |
+          # Ensure markdownlint exits with non-zero code if violations are found
+          if [[ $? -ne 0 ]]; then
+            echo "Markdown linting failed. Please fix the issues and try again."
+            exit 1
+          else
+            echo "Markdown files passed linting successfully."
+          fi
+        displayName: 'Check for Linting Violations'
